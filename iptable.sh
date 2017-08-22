@@ -35,6 +35,10 @@ while [[ $# -gt 0 ]];  do
         RESET_ONLY=on
 	shift # past argument
 	;;
+	--debug-only)
+        DEBUG_ONLY=on
+	shift # past argument
+	;;
 
 	*)
 	# unknown option
@@ -120,11 +124,6 @@ if [ "${ALLOW_HOSTS}" ] ; then
     echo ""
 fi
 
-echo "###"
-echo "# Start to apply firewall"
-echo "###"
-
-
 ## Library
 netinfo ()
 {
@@ -134,8 +133,8 @@ netinfo ()
 
     for NIC in "$@" ; do
         {
-        IP=`ifconfig $NIC |grep 'inet addr' |awk '{print $2}'|sed -e "s/addr\://"`
-        MASK=`ifconfig $NIC |grep 'inet addr' |awk '{print $4}'|sed -e "s/Mask\://"`
+        IP=`ifconfig $NIC |grep -P -m1 'inet addr|inet' |awk '{print $2}'|sed -e "s/addr\://"`
+        MASK=`ifconfig $NIC |grep -P -m1 'inet addr|inet' |awk '{print $4}'|sed -e "s/Mask\://"`
         IP1=`echo $IP |awk -F'.' '{print $1}'`
         if [ "$IP1" = "" ]; then
             echo ""
@@ -164,7 +163,7 @@ netinfo ()
 
 ## default
 initialize
-HI="1025:65535"
+HI="1024:65535"
 
 ## Outside
 netinfo "$EXT_IF"
@@ -189,6 +188,14 @@ echo "## Internal Net"
 echo $INT_NET
 echo ""
 
+if [ -n "$DEBUG_ONLY" ] ; then
+    exit;
+fi
+
+echo "###"
+echo "# Start to apply firewall"
+echo "###"
+sleep 3;
 
 
 ## Default drop all
@@ -218,18 +225,15 @@ fi
 # Defend ping-of-death
 ###
 $IPCMD -N PING_OF_DEATH
-$IPCMD -A PING_OF_DEATH -p icmp --icmp-type echo-request \
+$IPCMD -A PING_OF_DEATH -p icmp \
          -m hashlimit \
-         --hashlimit 1/s \
-         --hashlimit-burst 10 \
-         --hashlimit-htable-expire 300000 \
+         --hashlimit-name icmp \
          --hashlimit-mode srcip \
-         --hashlimit-name t_PING_OF_DEATH \
-         -j RETURN
-
-$IPCMD -A PING_OF_DEATH -j LOG --log-prefix "ping_of_death_attack: "
-$IPCMD -A PING_OF_DEATH -j DROP
-$IPCMD -A INPUT -p icmp --icmp-type echo-request -j PING_OF_DEATH
+         --hashlimit 5/second \
+         --hashlimit-burst 2 \
+         -j ACCEPT 
+$IPCMD -A PING_OF_DEATH -p icmp -j DROP
+$IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
 
 ###
 # Defend sync flood
