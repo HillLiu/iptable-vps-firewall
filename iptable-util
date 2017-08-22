@@ -1,6 +1,15 @@
 #!/bin/bash
+
+dump ()
+{
+    echo "###"
+    echo "# $1"
+    echo "###"
+    echo ""
+}
+
 if [ "$(whoami)" != "root" ]; then
-    echo "Sorry, you are not root."
+    dump "Sorry, you are not root."
     exit 1
 fi
 
@@ -31,7 +40,7 @@ while [[ $# -gt 0 ]];  do
         SHOW_STATUS_ONLY=on
 	shift # past argument
 	;;
-	--reset-only)
+	--stop)
         RESET_ONLY=on
 	shift # past argument
 	;;
@@ -47,34 +56,24 @@ while [[ $# -gt 0 ]];  do
     shift # past argument or value
 done
 
+## Check if iptalbe exists 
 if [ -z "$IPCMD" ] ; then
     IPCMD="iptables";
 fi
-
-## Check if iptalbe exists 
 CHK_IPTABLES=$(which $IPCMD 2>/dev/null)
 if [ -z "$CHK_IPTABLES" ]; then
-    echo
-    echo "$(basename $0): iptables program is not found."
-    echo "	Please install the program first."
-    echo
+    dump "$(basename $0): iptables program is not found."
     exit 1
 fi
 
 if [ -n "$SHOW_STATUS_ONLY" ] ; then
-    echo "###";
-    echo "# Rule List";
-    echo "###";
-    echo ""
+    dump "Rule List"
     $IPCMD -L
     echo ""
-    echo ""
-    echo "###";
-    echo "# Command List";
-    echo "###";
-    echo ""
+    dump "Command List"
     $IPCMD -S
-    exit;
+    echo ""
+    exit 1;
 fi
 
 initialize ()
@@ -95,8 +94,8 @@ if [ -n "$RESET_ONLY" ] ; then
 fi
 
 if [ -z "$EXT_IF" ] ; then
-    echo "External Interface should not be empty"
-    exit;
+    dump "External Interface should not be empty"
+    exit 1
 fi
 
 if [ -z "$INT_IF" ] ; then
@@ -104,8 +103,7 @@ if [ -z "$INT_IF" ] ; then
 fi
 
 
-echo "## Paramters"
-echo ""
+dump "Paramters"
 
 echo "# External Interface:"
 echo $EXT_IF 
@@ -203,10 +201,8 @@ if [ -n "$DEBUG_ONLY" ] ; then
     exit;
 fi
 
-echo "###"
-echo "# Start to apply firewall"
-echo "###"
-sleep 3;
+dump "Start to apply firewall... pass ctrl+c to cancel."
+sleep 2;
 
 
 ## Default drop all
@@ -348,4 +344,7 @@ $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 ## List rules
 echo "## Check All Rules"
 $IPCMD -S
+
+dump "Iptalbes is enabled."
+echo ""
 exit;
