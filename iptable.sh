@@ -62,6 +62,17 @@ if [ -z "$CHK_IPTABLES" ]; then
 fi
 
 if [ -n "$SHOW_STATUS_ONLY" ] ; then
+    echo "###";
+    echo "# Rule List";
+    echo "###";
+    echo ""
+    $IPCMD -L
+    echo ""
+    echo ""
+    echo "###";
+    echo "# Command List";
+    echo "###";
+    echo ""
     $IPCMD -S
     exit;
 fi
