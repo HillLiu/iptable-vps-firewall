@@ -224,7 +224,10 @@ fi
 ## Allow trust
 if [ "${ALLOW_HOSTS}" ] ; then
     for allow_host in ${ALLOW_HOSTS[@]} ; do
-	$IPCMD -A INPUT -p tcp -s $allow_host -j ACCEPT
+	$IPCMD -A INPUT -s $allow_host -j ACCEPT
+	$IPCMD -A OUTPUT -d $allow_host -j ACCEPT
+	$IPCMD -A FORWARD -s $allow_host -j ACCEPT
+	$IPCMD -A FORWARD -d $allow_host -j ACCEPT
     done
 fi
 
