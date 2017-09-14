@@ -252,7 +252,7 @@ $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,EST
 # Defend sync flood
 ###
 $IPCMD -N synfoold
-$IPCMD -A synfoold -p tcp --syn -m limit --limit 10/s -j RETURN
+$IPCMD -A synfoold -p tcp --syn -m limit --limit 1/s --limit-burst 100 -j RETURN
 $IPCMD -A synfoold -p tcp -j REJECT --reject-with tcp-reset
 $IPCMD -A INPUT -p tcp -m state --state NEW -j synfoold
 
