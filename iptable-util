@@ -177,7 +177,7 @@ netinfo ()
 initialize
 HI="1024:65535"
 
-## Outside
+## External 
 netinfo "$EXT_IF"
 EXT_IP="$IP"
 EXT_NET="$NET"/"$MASK"
@@ -189,7 +189,7 @@ echo "## External Net"
 echo $EXT_NET
 echo ""
 
-## Inside 
+## Internal 
 netinfo "$INT_IF"
 INT_IP="$IP"
 INT_NET="$NET"/"$MASK"
@@ -233,6 +233,27 @@ if [ "${ALLOW_HOSTS}" ] ; then
 	$IPCMD -A FORWARD -d $allow_host -j ACCEPT
     done
 fi
+
+## Restrict Docker
+PRIVATE=(
+  "10.0.0.0/8"
+  "172.16.0.0/12"
+  "192.168.0.0/16"
+)
+if [ "${ALLOW_HOSTS}" ] ; then
+  trustAndPrivate=("${ALLOW_HOSTS[@]}" "${PRIVATE[@]}")
+else
+  trustAndPrivate=PRIVATE
+fi
+$IPCMD -N DOCKER-USER
+for allow_host in ${trustAndPrivate[@]} ; do
+  echo $allow_host
+  echo ""
+  $IPCMD -A DOCKER-USER -j RETURN -s $allow_host
+  $IPCMD -A DOCKER-USER -j DROP -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $allow_host
+  $IPCMD -A DOCKER-USER -j DROP -p udp -m udp --dport 0:32767 -d $allow_host
+done
+$IPCMD -A DOCKER-USER -j RETURN
 
 ###
 # Defend ping-of-death
@@ -302,8 +323,8 @@ $IPCMD -A OUTPUT -m state --state INVALID -j DROP
 # Enalbe internal routing
 ###
 if [ "$INT_IF" != "$EXT_IF" ] ; then
-   $IPCMD -t nat -P PREROUTING   ACCEPT
-   $IPCMD -t nat -P POSTROUTING  ACCEPT
+   $IPCMD -t nat -P PREROUTING  ACCEPT
+   $IPCMD -t nat -P POSTROUTING ACCEPT
    $IPCMD -t nat -A POSTROUTING -s $INT_NET -j SNAT --to-source $EXT_IP
    $IPCMD -t nat -A POSTROUTING -o $EXT_IF -s $INT_NET -j MASQUERADE
 fi
@@ -338,6 +359,6 @@ $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 echo "## Check All Rules"
 $IPCMD -S
 
-dump "Iptalbes is enabled."
+dump "Iptalbes was applied."
 echo ""
 exit;
