@@ -183,9 +183,9 @@ EXT_IP="$IP"
 EXT_NET="$NET"/"$MASK"
 
 echo ""
-echo "## External IP"
+echo "## External IP ##"
 echo $EXT_IP
-echo "## External Net"
+echo "## External Net ##"
 echo $EXT_NET
 echo ""
 
@@ -194,9 +194,9 @@ netinfo "$INT_IF"
 INT_IP="$IP"
 INT_NET="$NET"/"$MASK"
 
-echo "## Internal IP"
+echo "## Internal IP ##"
 echo $INT_IP
-echo "## Internal Net"
+echo "## Internal Net ##"
 echo $INT_NET
 echo ""
 
@@ -223,6 +223,18 @@ if [ "$INT_IF" != "$EXT_IF" ] ; then
    $IPCMD -A FORWARD -i $INT_IF -j ACCEPT
    $IPCMD -A FORWARD -o $INT_IF -j ACCEPT
 fi
+
+###
+# Ftp
+###
+modprobe ip_conntrack
+modprobe ip_conntrack_ftp
+$IPCMD -A OUTPUT -p tcp --sport $HI -m multiport --dports 20,$HI -m state -state ESTABLISHED -j ACCEPT
+$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI -m multiport --dports 21,$HI -m state -state NEW,ESTABLISHED -j ACCEPT
+$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI --dport $HI -m state -state NEW,RELATED -j ACCEPT
+$IPCMD -A INPUT -p tcp --sport 20 --dport $HI -m state -state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A INPUT -p tcp -m tcp -m multiport --sports 21,$HI --dport $HI -m state -state ESTABLISHED -j ACCEPT
+
 
 ## Allow trust
 if [ "${ALLOW_HOSTS}" ] ; then
