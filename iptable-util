@@ -8,6 +8,28 @@ dump ()
     echo ""
 }
 
+usage()
+{
+  echo -n "
+iptable-util -e eth0 -o \"80 443\" -t \"1.1.1.1 2.2.2.2\"
+
+Use this script careful, it possible deny all your connections.
+More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
+
+ Options:
+  -h, --help                  Display this help and exit
+  -e, --external-interface    External Network
+  -i, --internal-interface    Internal Network
+  -o, --open-port             Open Port
+  -t, --trust                 Trust host
+  -c, --cmd                   Iptable command path
+  -s, --status                Current rule list
+  -d, --debug                 Runs script in BASH debug mode
+      --stop                  Reset all rule.
+"
+}
+
+
 if [ "$(whoami)" != "root" ]; then
     dump "Sorry, you are not root."
     exit 1
@@ -16,6 +38,10 @@ fi
 while [[ $# -gt 0 ]];  do
     key="$1"
     case $key in
+        -h|--help)
+        usage
+        exit;
+	;;
 	-e|--external-interface)
 	EXT_IF="$2"
 	shift # past argument
@@ -28,29 +54,28 @@ while [[ $# -gt 0 ]];  do
 	OPEN_PORT="$2"
 	shift # past argument
 	;;
-	-c|--cmd)
-	IPCMD="$2"
-	shift # past argument
-	;;
 	-t|--trust)
 	ALLOW_HOSTS="$2"
+	shift # past argument
+	;;
+	-c|--cmd)
+	IPCMD="$2"
 	shift # past argument
 	;;
 	-s|--status)
         SHOW_STATUS_ONLY=on
 	shift # past argument
 	;;
+	-d|--debug)
+        DEBUG_ONLY=on
+	shift # past argument
+	;;
 	--stop)
         RESET_ONLY=on
 	shift # past argument
 	;;
-	--debug-only)
-        DEBUG_ONLY=on
-	shift # past argument
-	;;
-
 	*)
-	# unknown option
+        # unknown option
 	;;
     esac
     shift # past argument or value
@@ -105,7 +130,6 @@ if [ -z "$INT_IF" ] ; then
     INT_IF=$EXT_IF;
 fi
 
-
 dump "Paramters"
 
 echo "# External Interface:"
@@ -136,7 +160,9 @@ if [ "${ALLOW_HOSTS}" ] ; then
     echo ""
 fi
 
-## Library
+##
+# Library
+##
 netinfo ()
 {
     IP=""
@@ -225,7 +251,7 @@ if [ "$INT_IF" != "$EXT_IF" ] ; then
 fi
 
 ###
-# Ftp
+# FTP Active mode
 ###
 modprobe ip_conntrack
 modprobe ip_conntrack_ftp
