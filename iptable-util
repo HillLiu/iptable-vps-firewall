@@ -2,6 +2,7 @@
 
 dump ()
 {
+    echo ""
     echo "###"
     echo "# $1"
     echo "###"
@@ -17,15 +18,16 @@ Use this script careful, it possible deny all your connections.
 More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
 
  Options:
-  -h, --help                  Display this help and exit
-  -e, --external-interface    External Network
-  -i, --internal-interface    Internal Network
-  -o, --open-port             Open Port
-  -t, --trust                 Trust host
-  -c, --cmd                   Iptable command path
-  -s, --status                Current rule list
-  -d, --debug                 Runs script in BASH debug mode
+  -h, --help                  Display this help and exit.
+  -e, --external-interface    External Network.
+  -i, --internal-interface    Internal Network.
+  -o, --open-port             Open Port.
+  -t, --trust                 Trust host.
+  -c, --cmd                   Iptable command path.
+  -l, --list                  Current rule list.
+  -d, --debug                 Reset after 60sec.
       --stop                  Reset all rule.
+      --show                  Display information only.
 "
 }
 
@@ -62,12 +64,16 @@ while [[ $# -gt 0 ]];  do
 	IPCMD="$2"
 	shift # past argument
 	;;
-	-s|--status)
-        SHOW_STATUS_ONLY=on
+	-l|--list)
+        LIST_RULES_ONLY=on
 	shift # past argument
 	;;
 	-d|--debug)
         DEBUG_ONLY=on
+	shift # past argument
+	;;
+	--show)
+        SHOW_INFO_ONLY=on
 	shift # past argument
 	;;
 	--stop)
@@ -91,7 +97,7 @@ if [ -z "$CHK_IPTABLES" ]; then
     exit 1
 fi
 
-if [ -n "$SHOW_STATUS_ONLY" ] ; then
+if [ -n "$LIST_RULES_ONLY" ] ; then
     dump "Rule List"
     $IPCMD -L -n
     echo ""
@@ -226,7 +232,7 @@ echo "## Internal Net ##"
 echo $INT_NET
 echo ""
 
-if [ -n "$DEBUG_ONLY" ] ; then
+if [ -n "$SHOW_INFO_ONLY" ] ; then
     exit;
 fi
 
@@ -417,5 +423,9 @@ echo "## Check All Rules"
 $IPCMD -S
 
 dump "Iptalbes was applied."
-echo ""
+if [ -n "$DEBUG_ONLY" ] ; then
+    sleep 60;
+    dump "Iptalbes was reset."
+    initialize
+fi
 exit;
