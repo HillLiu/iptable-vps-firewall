@@ -31,144 +31,6 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
 "
 }
 
-
-if [ "$(whoami)" != "root" ]; then
-    dump "Sorry, you are not root."
-    exit 1
-fi
-
-while [[ $# -gt 0 ]];  do
-    key="$1"
-    case $key in
-        -h|--help)
-        usage
-        exit;
-	;;
-	-e|--external-interface)
-	EXT_IF="$2"
-	shift # past argument
-	;;
-	-i|--internal-interface)
-	INT_IF="$2"
-	shift # past argument
-	;;
-	-o|--open-port)
-	OPEN_PORT="$2"
-	shift # past argument
-	;;
-	-t|--trust)
-	ALLOW_HOSTS="$2"
-	shift # past argument
-	;;
-	-c|--cmd)
-	IPCMD="$2"
-	shift # past argument
-	;;
-	-l|--list)
-        LIST_RULES_ONLY=on
-	shift # past argument
-	;;
-	-d|--debug)
-        DEBUG_ONLY=on
-	shift # past argument
-	;;
-	--show)
-        SHOW_INFO_ONLY=on
-	shift # past argument
-	;;
-	--stop)
-        RESET_ONLY=on
-	shift # past argument
-	;;
-	*)
-        # unknown option
-	;;
-    esac
-    shift # past argument or value
-done
-
-## Check if iptalbe exists 
-if [ -z "$IPCMD" ] ; then
-    IPCMD="iptables";
-fi
-CHK_IPTABLES=$(which $IPCMD 2>/dev/null)
-if [ -z "$CHK_IPTABLES" ]; then
-    dump "$(basename $0): iptables program is not found."
-    exit 1
-fi
-
-if [ -n "$LIST_RULES_ONLY" ] ; then
-    dump "Rule List"
-    $IPCMD -L -n
-    echo ""
-    dump "Nat Rule List"
-    $IPCMD -t nat -L
-    echo ""
-    dump "Command List"
-    $IPCMD -S
-    echo ""
-    exit 1;
-fi
-
-initialize ()
-{
-    $IPCMD -P INPUT   ACCEPT
-    $IPCMD -P OUTPUT  ACCEPT
-    $IPCMD -P FORWARD ACCEPT
-    $IPCMD -F
-    $IPCMD -X
-    $IPCMD -Z
-}
-
-if [ -n "$RESET_ONLY" ] ; then
-    echo "# Reset only"
-    initialize
-    $IPCMD -S
-    exit;
-fi
-
-if [ -z "$EXT_IF" ] ; then
-    dump "External Interface should not be empty"
-    exit 1
-fi
-
-if [ -z "$INT_IF" ] ; then
-    INT_IF=$EXT_IF;
-fi
-
-dump "Paramters"
-
-echo "# External Interface:"
-echo $EXT_IF 
-echo "" 
-
-echo "# Internal Interface:"
-echo $INT_IF 
-echo "" 
-
-if [ "${OPEN_PORT}" ] ; then
-    echo "# Open Ports:"
-    for port in ${OPEN_PORT[@]} ; do
-        echo $port 
-    done
-    echo ""
-fi
-
-echo "# Iptable command-line path:"
-echo $IPCMD 
-echo "" 
-
-if [ "${ALLOW_HOSTS}" ] ; then
-    echo "# Trust Hosts:"
-    for allow_host in ${ALLOW_HOSTS[@]} ; do
-        echo $allow_host 
-    done
-    echo ""
-fi
-
-##
-# Library
-##
 netinfo ()
 {
     IP=""
@@ -204,6 +66,167 @@ netinfo ()
         }
     done
 }
+
+
+while [[ $# -gt 0 ]];  do
+    key="$1"
+    case $key in
+        -h|--help)
+        usage
+        exit;
+	;;
+	-e|--external-interface)
+	EXT_IF="$2"
+	shift # past argument
+	;;
+	-i|--internal-interface)
+	INT_IF="$2"
+	shift # past argument
+	;;
+	-o|--open-port)
+	OPEN_PORT="$2"
+	shift # past argument
+	;;
+	-t|--trust)
+	ALLOW_HOSTS="$2"
+	shift # past argument
+	;;
+	-c|--cmd)
+	IPCMD="$2"
+	shift # past argument
+	;;
+	-l|--list)
+        LIST_RULES_ONLY=on
+	;;
+	-d|--debug)
+        DEBUG_ONLY=on
+	;;
+	--nat)
+        NAT_FROM_IP="$2"
+        NAT_FROM_PORT="$3"
+        NAT_TO_IP="$4"
+        NAT_TO_PORT="$5"
+	shift # past argument
+	shift # past argument
+	shift # past argument
+	shift # past argument
+	;;
+	--show)
+        SHOW_INFO_ONLY=on
+	;;
+	--stop)
+        RESET_ONLY=on
+	;;
+	*)
+        # unknown option
+	;;
+    esac
+    shift # past argument or value
+done
+
+if [ "$(whoami)" != "root" ]; then
+    dump "Sorry, you are not root."
+    exit 1
+fi
+
+## Check if iptalbe exists 
+if [ -z "$IPCMD" ] ; then
+    IPCMD="iptables";
+fi
+CHK_IPTABLES=$(which $IPCMD 2>/dev/null)
+if [ -z "$CHK_IPTABLES" ]; then
+    dump "$(basename $0): iptables program is not found."
+    exit 1
+fi
+
+if [ -n "$LIST_RULES_ONLY" ] ; then
+    dump "Rule List"
+    $IPCMD -L -n
+    echo ""
+    dump "Nat Rule List"
+    $IPCMD -t nat -L
+    echo ""
+    dump "Command List"
+    $IPCMD -S
+    echo ""
+    exit 1;
+fi
+
+initialize ()
+{
+    $IPCMD -P INPUT   ACCEPT
+    $IPCMD -P OUTPUT  ACCEPT
+    $IPCMD -P FORWARD ACCEPT
+    $IPCMD -F
+    $IPCMD -X
+    $IPCMD -Z
+}
+
+initNAT ()
+{
+  echo ""
+  echo "## NAT From IP ##"
+  echo $NAT_FROM_IP
+  echo "## NAT From Port ##"
+  echo $NAT_FROM_PORT
+  echo "## NAT To IP ##"
+  echo $NAT_TO_IP
+  echo "## NAT To Port ##"
+  echo $NAT_TO_PORT
+  echo ""
+  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
+  $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
+}
+
+if [ -n "$RESET_ONLY" ] ; then
+    echo "# Reset only"
+    initialize
+    $IPCMD -S
+    exit;
+fi
+
+if [ -z "$EXT_IF" ] ; then
+  if [ -z "$NAT_FROM_IP"] ; then 
+    dump "External Interface should not be empty"
+  else
+    initNAT    
+  fi
+  exit 1
+fi
+
+if [ -z "$INT_IF" ] ; then
+    INT_IF=$EXT_IF;
+fi
+
+dump "Paramters"
+
+echo "# External Interface:"
+echo $EXT_IF 
+echo "" 
+
+echo "# Internal Interface:"
+echo $INT_IF 
+echo "" 
+
+if [ "${OPEN_PORT}" ] ; then
+    echo "# Open Ports:"
+    for port in ${OPEN_PORT[@]} ; do
+        echo $port 
+    done
+    echo ""
+fi
+
+echo "# Iptable command-line path:"
+echo $IPCMD 
+echo "" 
+
+if [ "${ALLOW_HOSTS}" ] ; then
+    echo "# Trust Hosts:"
+    for allow_host in ${ALLOW_HOSTS[@]} ; do
+        echo $allow_host 
+    done
+    echo ""
+fi
 
 ## default
 initialize
@@ -303,13 +326,13 @@ $IPCMD -A INPUT -p tcp -m state --state NEW -j synfoold
 ###
 # Defend malicious scan
 ###
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags ALL ALL -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags ALL NONE -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-$IPCMD -A INPUT -i $EXT_IF -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 6/m -j ACCEPT
+$IPCMD -A INPUT -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+$IPCMD -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 6/m -j ACCEPT
 
 ## 
 # tcp_packets
