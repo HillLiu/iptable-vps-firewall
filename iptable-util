@@ -268,8 +268,12 @@ $IPCMD -P INPUT DROP
 $IPCMD -P FORWARD DROP
 
 ## Allow lo
-$IPCMD -A INPUT -i lo -j ACCEPT
-$IPCMD -A OUTPUT -o lo -j ACCEPT
+LOCAL=(lo docker0)
+
+for lo in ${LOCAL[@]} ; do
+  $IPCMD -A INPUT -i $lo -j ACCEPT
+  $IPCMD -A OUTPUT -o $lo -j ACCEPT
+done
 
 ## Allow internal
 if [ "$INT_IF" != "$EXT_IF" ] ; then
