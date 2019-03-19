@@ -399,14 +399,15 @@ for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
   echo "docker port: $allow_port"
   $IPCMD -I DOCKER-USER -p tcp -m tcp --dport $allow_port -j ACCEPT 
 done
+echo ""
 
 for private in ${trustAndPrivate[@]} ; do
-  echo $private
-  echo ""
+  echo "docker trust host: $private"
   $IPCMD -I DOCKER-USER -j RETURN -s $private
   $IPCMD -A DOCKER-USER -j DROP -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
   $IPCMD -A DOCKER-USER -j DROP -p udp -m udp --dport 0:32767 -d $private
 done
+echo ""
 
 $IPCMD -A DOCKER-USER -j RETURN
 
