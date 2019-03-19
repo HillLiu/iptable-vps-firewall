@@ -26,6 +26,7 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
   -c, --cmd                   Iptable command path.
   -l, --list                  Current rule list.
   -d, --debug                 Reset after 60sec.
+      --docker-port           Docker Port
       --stop                  Reset all rule.
       --show                  Display information only.
 "
@@ -111,6 +112,10 @@ while [[ $# -gt 0 ]];  do
 	shift # past argument
 	shift # past argument
 	;;
+      --docker-port)
+        DOCKER_OPEN_PORT="$2"
+	shift # past argument
+        ;;
 	--show)
         SHOW_INFO_ONLY=on
 	;;
@@ -388,7 +393,8 @@ fi
 
 $IPCMD -N DOCKER-USER
 
-for allow_port in $OPEN_PORT; do
+for allow_port in $DOCKER_OPEN_PORT; do
+  echo "docker port: $allow_port"
   $IPCMD -I DOCKER-USER -p tcp -m tcp --dport $allow_port -j ACCEPT 
 done
 
