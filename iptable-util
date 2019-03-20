@@ -379,14 +379,18 @@ done
 # Restrict Docker
 ##
 
+COMMON_PORT="80 443"
+if [ "${DOCKER_OPEN_PORT}" ] ; then
+  ALL_DOCKER_OPEN_PORT=("${DOCKER_OPEN_PORT[@]}" "${COMMON_PORT[@]}")
+else
+  ALL_DOCKER_OPEN_PORT=COMMON_PORT
+fi
+
 PRIVATE=(
   "10.0.0.0/8"
   "172.16.0.0/12"
   "192.168.0.0/16"
 )
-COMMON_PORT="80 443 53"
-ALL_DOCKER_OPEN_PORT=("${COMMON_PORT[@]}" "${DOCKER_OPEN_PORT[@]}")
-
 if [ "${ALLOW_HOSTS}" ] ; then
   trustAndPrivate=("${ALLOW_HOSTS[@]}" "${PRIVATE[@]}")
 else
@@ -397,15 +401,15 @@ $IPCMD -N DOCKER-USER
 
 for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
   echo "docker port: $allow_port"
-  $IPCMD -I DOCKER-USER -p tcp -m tcp --dport $allow_port -j ACCEPT 
+  $IPCMD -A DOCKER-USER -p tcp -m tcp --dport $allow_port -j ACCEPT 
 done
 echo ""
 
 for private in ${trustAndPrivate[@]} ; do
   echo "docker trust host: $private"
-  $IPCMD -I DOCKER-USER -j RETURN -s $private
-  $IPCMD -A DOCKER-USER -j DROP -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
-  $IPCMD -A DOCKER-USER -j DROP -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -A DOCKER-USER -j ACCEPT -s $private
+  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
 done
 echo ""
 
