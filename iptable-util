@@ -26,6 +26,7 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
   -c, --cmd                   Iptable command path.
   -l, --list                  Current rule list.
   -d, --debug                 Reset after 60sec.
+      --debug-sec             Reset after \$n sec.
       --docker-port           Docker Port
       --stop                  Reset all rule.
       --show                  Display information only.
@@ -102,6 +103,11 @@ while [[ $# -gt 0 ]];  do
 	-d|--debug)
         DEBUG_ONLY=on
 	;;
+	--debug-sec)
+        DEBUG_ONLY=on
+        DEBUG_SEC=$2
+	shift # past argument
+	;;
 	--nat)
         NAT_FROM_IP="$2"
         NAT_FROM_PORT="$3"
@@ -112,7 +118,7 @@ while [[ $# -gt 0 ]];  do
 	shift # past argument
 	shift # past argument
 	;;
-      --docker-port)
+        --docker-port)
         DOCKER_OPEN_PORT="$2"
 	shift # past argument
         ;;
@@ -264,7 +270,7 @@ if [ -n "$SHOW_INFO_ONLY" ] ; then
     exit;
 fi
 
-dump "Start to apply firewall... pass ctrl+c to cancel."
+dump "Start to apply firewall... Press ctrl+c to cancel."
 sleep 2;
 
 
@@ -464,7 +470,11 @@ $IPCMD -S
 
 dump "Iptalbes was applied."
 if [ -n "$DEBUG_ONLY" ] ; then
-    sleep 60;
+    if [ -z "$DEBUG_SEC" ] ; then
+        DEBUG_SEC=60;
+    fi
+    dump "Iptalbes Debug mode enable will reset after ${DEBUG_SEC}secs... Press ctrl+c to cancel reset."
+    sleep $DEBUG_SEC;
     dump "Iptalbes was reset."
     initialize
 fi
