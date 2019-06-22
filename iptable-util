@@ -279,7 +279,7 @@ $IPCMD -P INPUT DROP
 $IPCMD -P FORWARD DROP
 
 ## Allow lo
-LOCAL=(lo docker0)
+LOCAL=(lo docker0 cbr0)
 
 for lo in ${LOCAL[@]} ; do
   $IPCMD -A INPUT -i $lo -j ACCEPT
@@ -407,7 +407,7 @@ $IPCMD -N DOCKER-USER
 
 for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
   echo "docker port: $allow_port"
-  $IPCMD -A DOCKER-USER -p tcp -m tcp --dport $allow_port -j ACCEPT 
+  $IPCMD -A DOCKER-USER -i $EXT_IF -p tcp -m tcp --dport $allow_port -j ACCEPT 
 done
 echo ""
 
