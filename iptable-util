@@ -330,7 +330,7 @@ $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,EST
 # Defend sync flood
 ###
 $IPCMD -N synfoold
-$IPCMD -A synfoold -p tcp --syn -m limit --limit 1/s --limit-burst 100 -j RETURN
+$IPCMD -A synfoold -p tcp --syn -m limit --limit 1/s --limit-burst 300 -j RETURN
 $IPCMD -A synfoold -p tcp -j REJECT --reject-with tcp-reset
 $IPCMD -A INPUT -p tcp -m state --state NEW -j synfoold
 
@@ -343,7 +343,7 @@ $IPCMD -A INPUT -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-$IPCMD -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 6/m -j ACCEPT
+$IPCMD -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 300 -j ACCEPT
 
 ## 
 # tcp_packets
