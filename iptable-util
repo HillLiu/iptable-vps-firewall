@@ -421,6 +421,7 @@ $IPCMD -A FORWARD -p tcp -j tcp_packets
 $IPCMD -N allowed
 $IPCMD -A allowed -p tcp --syn -j ACCEPT
 $IPCMD -A allowed -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A allowed -p tcp -j LOG --log-prefix "IPTABLES ( invalid allow ):"
 $IPCMD -A allowed -p tcp -j DROP
 ## !!! Important !!! these tcp packet rules need put after allowd chain
 $IPCMD -A tcp_packets -p tcp -s 0/0 --dport $HI -j allowed
@@ -463,6 +464,8 @@ echo ""
 for private in ${trustAndPrivate[@]} ; do
   echo "docker trust host: $private"
   $IPCMD -A DOCKER-USER -j ACCEPT -s $private
+  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user tcp ):" -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user udp ):" -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
   $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
   $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
 done
@@ -473,7 +476,9 @@ $IPCMD -A DOCKER-USER -j RETURN
 
 ## Drop illegal connection
 $IPCMD -A INPUT -i $EXT_IF -m state --state RELATED,ESTABLISHED -j ACCEPT 
+$IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j LOG --log-prefix "IPTABLES ( invalid FORWARD ):"
 $IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j DROP 
+$IPCMD -A OUTPUT -m state --state INVALID -j LOG --log-prefix "IPTABLES ( invalid OUTPUT ):"
 $IPCMD -A OUTPUT -m state --state INVALID -j DROP
 
 ###
