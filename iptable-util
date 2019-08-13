@@ -381,8 +381,8 @@ $IPCMD -A synFlood -p tcp --syn \
          -m hashlimit \
          --hashlimit-name _synFlood \
          --hashlimit-mode srcip \
-         --hashlimit-htable-expire 60000 \
-         --hashlimit-htable-gcinterval 20000 \
+         --hashlimit-htable-expire 30000 \
+         --hashlimit-htable-gcinterval 10000 \
          --hashlimit-upto ${PACKETS_LIMIT}/s \
          --hashlimit-burst $PACKETS_BURST \
          -j RETURN
