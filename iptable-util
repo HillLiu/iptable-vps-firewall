@@ -1,4 +1,7 @@
 #!/bin/bash
+IF="/sbin/ifconfig"
+PACKETS_LIMIT=500
+PACKETS_BURST=1000
 
 dump ()
 {
@@ -29,8 +32,21 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
       --debug-sec             Reset after \$n sec.
       --docker-port           Docker Port
       --stop                  Reset all rule.
-      --show                  Display information only.
+      --info                  Display information only.
+      --limit                 Limit packets with second
+      --burst                 Execute limit when exceed burst
 "
+}
+
+hexToDecIp()
+{
+  n=$(echo $(($1)))
+  n1=$(($n >> 24))
+  n2=$(( ($n >> 16) & 0xFF))
+  n3=$(( ($n >> 8) & 0xFF))
+  n4=$(($n & 0xFF))
+
+  DEC_IP=$(printf "%d.%d.%d.%d" $n1 $n2 $n3 $n4)
 }
 
 netinfo ()
@@ -41,29 +57,34 @@ netinfo ()
 
     for NIC in "$@" ; do
         {
-        IP=`ifconfig $NIC |grep -P -m1 'inet addr|inet' |awk '{print $2}'|sed -e "s/addr\://"`
-        MASK=`ifconfig $NIC |grep -P -m1 'inet addr|inet' |awk '{print $4}'|sed -e "s/Mask\://"`
+        IP=`$IF $NIC | sed -n -E 's/(inet |inet addr)/\1/p' | awk '{print $2}' | sed -e "s/addr\://"`
+        MASK=`$IF $NIC | sed -n -E 's/(inet |inet addr)/\1/p' | awk '{print $4}' | sed -e "s/Mask\://"`
         IP1=`echo $IP |awk -F'.' '{print $1}'`
         if [ "$IP1" = "" ]; then
-            echo ""
-            echo "Warning: there is no IP found on $NIC."
-            echo "Action is aborted."
-            echo "Please make sure the interface is setup properly, then try again."
-            echo ""
-            exit 1
+          echo ""
+          echo "Warning: there is no IP found on $NIC."
+          echo "Action is aborted."
+          echo "Please make sure the interface is setup properly, then try again."
+          echo ""
+          exit 1
         else
-        IP2=`echo $IP |awk -F'.' '{print $2}'`
-        IP3=`echo $IP |awk -F'.' '{print $3}'`
-        IP4=`echo $IP |awk -F'.' '{print $4}'`
-        MASK1=`echo $MASK |awk -F'.' '{print $1}'`
-        MASK2=`echo $MASK |awk -F'.' '{print $2}'`
-        MASK3=`echo $MASK |awk -F'.' '{print $3}'`
-        MASK4=`echo $MASK |awk -F'.' '{print $4}'`
-        let NET1="$IP1 & $MASK1"
-        let NET2="$IP2 & $MASK2"
-        let NET3="$IP3 & $MASK3"
-        let NET4="$IP4 & $MASK4"
-        NET="$NET1.$NET2.$NET3.$NET4"
+          IP2=`echo $IP |awk -F'.' '{print $2}'`
+          IP3=`echo $IP |awk -F'.' '{print $3}'`
+          IP4=`echo $IP |awk -F'.' '{print $4}'`
+          MASK2=`echo $MASK |awk -F'.' '{print $2}'`
+          if [ -z $MASK2 ]; then
+            hexToDecIp $MASK
+            MASK=$DEC_IP
+            MASK2=`echo $MASK |awk -F'.' '{print $2}'`
+          fi
+          MASK1=`echo $MASK |awk -F'.' '{print $1}'`
+          MASK3=`echo $MASK |awk -F'.' '{print $3}'`
+          MASK4=`echo $MASK |awk -F'.' '{print $4}'`
+          let NET1="$IP1 & $MASK1"
+          let NET2="$IP2 & $MASK2"
+          let NET3="$IP3 & $MASK3"
+          let NET4="$IP4 & $MASK4"
+          NET="$NET1.$NET2.$NET3.$NET4"
         fi
         }
     done
@@ -122,7 +143,7 @@ while [[ $# -gt 0 ]];  do
         DOCKER_OPEN_PORT="$2"
 	shift # past argument
         ;;
-	--show)
+	--info)
         SHOW_INFO_ONLY=on
 	;;
 	--stop)
@@ -141,6 +162,8 @@ if [ "$(whoami)" != "root" ]; then
 fi
 
 ## Check if iptalbe exists 
+IP_RESTORE="/sbin/iptables-restore"
+IP_SAVE_FILE="/dev/shm/iptables.save"
 if [ -z "$IPCMD" ] ; then
     IPCMD="iptables";
 fi
@@ -326,9 +349,11 @@ $IPCMD -A PING_OF_DEATH -p icmp \
          -m hashlimit \
          --hashlimit-name icmp \
          --hashlimit-mode srcip \
+         --hashlimit-htable-expire 30000 \
          --hashlimit 1/s \
          --hashlimit-burst 5 \
-         -j ACCEPT 
+         -j ACCEPT
+$IPCMD -A PING_OF_DEATH -j LOG --log-prefix "IPTABLES ( ping of death ):"
 $IPCMD -A PING_OF_DEATH -p icmp -j DROP
 $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
 
@@ -336,7 +361,7 @@ $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,EST
 # Defend sync flood
 ###
 $IPCMD -N synfoold
-$IPCMD -A synfoold -p tcp --syn -m limit --limit 500/s --limit-burst 1000 -j RETURN
+$IPCMD -A synfoold -p tcp --syn -m limit --limit ${PACKETS_LIMIT}/s --limit-burst $PACKETS_BURST -j RETURN
 $IPCMD -A synfoold -p tcp -j REJECT --reject-with tcp-reset
 $IPCMD -A INPUT -p tcp -m state --state NEW -j synfoold
 
@@ -349,7 +374,7 @@ $IPCMD -A INPUT -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
 $IPCMD -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-$IPCMD -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s --limit-burst 100 -j ACCEPT
+$IPCMD -A INPUT -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 6/m -j ACCEPT
 
 ## 
 # tcp_packets
@@ -477,5 +502,9 @@ if [ -n "$DEBUG_ONLY" ] ; then
     sleep $DEBUG_SEC;
     dump "Iptalbes was reset."
     initialize
+else
+    if [[ -e "$IP_SAVE_FILE" && -x "$IP_RESTORE" ]]; then
+            $IP_RESTORE < $IP_SAVE_FILE
+    fi
 fi
 exit;
