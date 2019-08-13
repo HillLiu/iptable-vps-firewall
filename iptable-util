@@ -143,6 +143,14 @@ while [[ $# -gt 0 ]];  do
         DOCKER_OPEN_PORT="$2"
 	shift # past argument
         ;;
+        --limit)
+        PACKETS_LIMIT="$2"
+	shift # past argument
+        ;;
+        --burst)
+        PACKETS_BURST="$2"
+	shift # past argument
+        ;;
 	--info)
         SHOW_INFO_ONLY=on
 	;;
