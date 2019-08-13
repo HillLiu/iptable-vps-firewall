@@ -201,6 +201,10 @@ initialize ()
     $IPCMD -P FORWARD ACCEPT
     $IPCMD -F
     $IPCMD -X
+    $IPCMD -t nat -F
+    $IPCMD -t nat -X
+    $IPCMD -t mangle -F
+    $IPCMD -t mangle -X
     $IPCMD -Z
 }
 
