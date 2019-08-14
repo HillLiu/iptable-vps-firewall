@@ -429,7 +429,7 @@ $IPCMD -A FORWARD -p tcp -j tcp_packets
 ##
 $IPCMD -N allowed
 $IPCMD -A allowed -p tcp --syn -j ACCEPT
-$IPCMD -A allowed -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A allowed -p tcp -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 $IPCMD -A allowed -p tcp -j LOG --log-prefix "IPTABLES ( invalid allow ):"
 $IPCMD -A allowed -p tcp -j DROP
 ## !!! Important !!! these tcp packet rules need put after allowd chain
