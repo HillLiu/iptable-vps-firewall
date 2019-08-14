@@ -376,6 +376,12 @@ $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,EST
 ###
 # Defend sync flood
 ###
+if [ "x-1" != "x$PACKETS_BURST" ]; then
+  PACKETS_BURST="--hashlimit-burst ${PACKETS_BURST}"
+else
+  PACKETS_BURST=""
+fi  
+
 $IPCMD -N synFlood
 $IPCMD -A synFlood -p tcp --syn \
          -m hashlimit \
@@ -383,8 +389,7 @@ $IPCMD -A synFlood -p tcp --syn \
          --hashlimit-mode srcip \
          --hashlimit-htable-expire 30000 \
          --hashlimit-htable-gcinterval 10000 \
-         --hashlimit-upto ${PACKETS_LIMIT}/s \
-         --hashlimit-burst $PACKETS_BURST \
+         --hashlimit-upto ${PACKETS_LIMIT}/s $PACKETS_BURST \
          -j RETURN
 $IPCMD -A synFlood -j LOG --log-prefix "IPTABLES ( syn flood ):"
 $IPCMD -A synFlood -p tcp -j REJECT --reject-with tcp-reset
