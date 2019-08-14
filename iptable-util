@@ -1,6 +1,6 @@
 #!/bin/bash
 IF="/sbin/ifconfig"
-PACKETS_LIMIT=512kb
+PACKETS_LIMIT=1mb
 PACKETS_BURST=512mb
 
 dump ()
