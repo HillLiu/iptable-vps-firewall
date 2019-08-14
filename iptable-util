@@ -425,20 +425,22 @@ $IPCMD -A INPUT -p tcp -j tcp_packets
 $IPCMD -A FORWARD -p tcp -j tcp_packets
 
 ## 
-# Allow chain
+# Allow forward chain
 ##
 $IPCMD -N allowed
 $IPCMD -A allowed -p tcp --syn -j ACCEPT
-$IPCMD -A allowed -p tcp -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
-$IPCMD -A allowed -p tcp -j LOG --log-prefix "IPTABLES ( invalid allow ):"
+$IPCMD -A allowed -p tcp -m state --state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A allowed -p tcp -j LOG --log-prefix "IPTABLES ( invalid forward ):"
 $IPCMD -A allowed -p tcp -j DROP
 ## !!! Important !!! these tcp packet rules need put after allowd chain
-$IPCMD -A tcp_packets -p tcp -s 0/0 --dport $HI -j allowed
+$IPCMD -N tcp_forward
+$IPCMD -A tcp_forward -p tcp -s 0/0 --dport $HI -j allowed
 for allow_port in $OPEN_PORT; do
-  echo "Allow Port: $allow_port"
+  echo "Allow forward port: $allow_port"
   echo ""
-  $IPCMD -A tcp_packets -p tcp -s 0/0 --dport $allow_port -j allowed
+  $IPCMD -A tcp_forward -p tcp -s 0/0 --dport $allow_port -j allowed
 done
+$IPCMD -A FORWARD -p tcp -j tcp_forward
 
 ## 
 # Restrict Docker
