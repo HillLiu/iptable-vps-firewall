@@ -429,12 +429,12 @@ $IPCMD -A PORT_SCAN -p tcp -j DROP
 # Port Scan 
 ##
 $IPCMD -N tcp_packets
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j LOG --log-prefix "IPTABLES ( tcp ALL FIN,URG,PSH ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j LOG --log-prefix "IPTABLES ( tcp ALL ALL ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j LOG --log-prefix "IPTABLES ( tcp ALL SYN,RST,ACK,FIN,URG ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "IPTABLES ( tcp ALL NONE ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j LOG --log-prefix "IPTABLES ( tcp SYN,RST SYN,RST ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j LOG --log-prefix "IPTABLES ( tcp SYN,FIN SYN,FIN ):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j LOG --log-prefix "IPTABLES (NMAP FIN/URG/PSH):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j LOG --log-prefix "IPTABLES (Xmas Tree):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j LOG --log-prefix "IPTABLES (Another Xmas Tree):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "IPTABLES (Null Scan):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j LOG --log-prefix "IPTABLES (SYN/RST):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j LOG --log-prefix "IPTABLES (SYN/FIN):"
 $IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
 $IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j DROP
 $IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
