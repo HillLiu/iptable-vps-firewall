@@ -507,7 +507,6 @@ $IPCMD -A DOCKER-USER -j RETURN
 
 
 ## Drop illegal connection
-$IPCMD -A INPUT -i $EXT_IF -m state --state RELATED,ESTABLISHED -j ACCEPT 
 $IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j LOG --log-prefix "IPTABLES ( invalid FORWARD ):"
 $IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j DROP 
 $IPCMD -A OUTPUT -m state --state INVALID -j LOG --log-prefix "IPTABLES ( invalid OUTPUT ):"
