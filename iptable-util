@@ -247,7 +247,7 @@ if [ -n "$LIST_RULES_ONLY" ] ; then
 fi
 
 if [ -n "$SAVE_ONLY" ] ; then
-  $IPCMD -S -t nat | sed -n -E 's/^(-A|-N)/\1/p' | xargs -I{} echo "-t nat {}" > $IP_SAVE_FILE
+  $IPCMD -S -t nat | sed -n -E 's/^(-A|-N)/\1/p'| sed 's/"/\\"/g' | xargs -I{} echo "-t nat {}" > $IP_SAVE_FILE
   $IPCMD -S | sed -n -E 's/^(-A|-N)/\1/p' >> $IP_SAVE_FILE
   cat $IP_SAVE_FILE
   exit 0
@@ -471,7 +471,7 @@ COMMON_PORT="80 443"
 if [ "${DOCKER_OPEN_PORT}" ] ; then
   ALL_DOCKER_OPEN_PORT=("${DOCKER_OPEN_PORT[@]}" "${COMMON_PORT[@]}")
 else
-  ALL_DOCKER_OPEN_PORT=COMMON_PORT
+  ALL_DOCKER_OPEN_PORT=${COMMON_PORT}
 fi
 
 PRIVATE=(
@@ -556,7 +556,7 @@ $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 echo "## Check All Rules"
 # Restore Docker rules
 if [ -e "$IP_SAVE_FILE" ]; then
-  cat $IP_SAVE_FILE | xargs -I{} bash -c "$IPCMD {}"
+  cat $IP_SAVE_FILE | sed 's/"/\\"/g' | xargs -I{} echo $IPCMD {} | bash
 fi
 $IPCMD -S
 
