@@ -31,7 +31,8 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
   -l, --list                  Current rule list.
   -d, --debug                 Reset after 60sec.
       --debug-sec             Reset after \$n sec.
-      --docker-port           Docker Port
+      --docker-port           Docker Port.
+      --ftp                   Enable FTP.
       --save                  Store rules.
       --stop                  Reset all rule and make all accept.
       --info                  Display information only.
@@ -122,6 +123,20 @@ initNAT ()
   $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
 }
 
+apply_ftp ()
+{
+  ###
+  # FTP Active mode
+  ###
+  modprobe ip_conntrack
+  modprobe ip_conntrack_ftp
+  $IPCMD -A OUTPUT -p tcp --sport $HI -m multiport --dports 20,$HI -m state --state ESTABLISHED -j ACCEPT
+  $IPCMD -A OUTPUT -p tcp -m tcp --sport $HI -m multiport --dports 21,$HI -m state --state NEW,ESTABLISHED -j ACCEPT
+  $IPCMD -A OUTPUT -p tcp -m tcp --sport $HI --dport $HI -m state --state NEW,RELATED -j ACCEPT
+  $IPCMD -A INPUT -p tcp --sport 20 --dport $HI -m state --state ESTABLISHED,RELATED -j ACCEPT
+  $IPCMD -A INPUT -p tcp -m tcp -m multiport --sports 21,$HI --dport $HI -m state --state ESTABLISHED -j ACCEPT
+}
+
 
 while [[ $# -gt 0 ]];  do
     key="$1"
@@ -191,6 +206,9 @@ while [[ $# -gt 0 ]];  do
 	;;
 	--save)
         SAVE_ONLY=on
+	;;
+	--ftp)
+        FTP=on
 	;;
 	*)
         # unknown option
@@ -352,16 +370,6 @@ if [ "${ALLOW_HOSTS}" ] ; then
 fi
 
 
-###
-# FTP Active mode
-###
-modprobe ip_conntrack
-modprobe ip_conntrack_ftp
-$IPCMD -A OUTPUT -p tcp --sport $HI -m multiport --dports 20,$HI -m state --state ESTABLISHED -j ACCEPT
-$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI -m multiport --dports 21,$HI -m state --state NEW,ESTABLISHED -j ACCEPT
-$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI --dport $HI -m state --state NEW,RELATED -j ACCEPT
-$IPCMD -A INPUT -p tcp --sport 20 --dport $HI -m state --state ESTABLISHED,RELATED -j ACCEPT
-$IPCMD -A INPUT -p tcp -m tcp -m multiport --sports 21,$HI --dport $HI -m state --state ESTABLISHED -j ACCEPT
 
 ###
 # Defend ping-of-death
@@ -521,6 +529,9 @@ $IPCMD -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 $IPCMD -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ## Enable OPEN_PORT
+if [ -n "$FTP" ] ; then
+   apply_ftp 
+fi
 for PORT in $OPEN_PORT; do
     $IPCMD -A INPUT -i $EXT_IF -p tcp --dport $PORT -j ACCEPT
     $IPCMD -A INPUT -i $EXT_IF -p udp --dport $PORT -j ACCEPT
