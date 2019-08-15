@@ -222,6 +222,7 @@ if [ -n "$LIST_RULES_ONLY" ] ; then
     $IPCMD -t nat -L
     echo ""
     dump "Command List"
+    $IPCMD -S -t nat | xargs -I{} echo "-t nat {}"
     $IPCMD -S
     echo ""
     exit 0
