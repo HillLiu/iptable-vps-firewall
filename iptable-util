@@ -247,7 +247,7 @@ if [ -n "$LIST_RULES_ONLY" ] ; then
 fi
 
 if [ -n "$SAVE_ONLY" ] ; then
-  $IPCMD -S -t nat | sed -n -E 's/^(-A|-N)/\1/p'| sed 's/"/\\"/g' | xargs -I{} echo "-t nat {}" > $IP_SAVE_FILE
+  $IPCMD -S -t nat | sed -n -E 's/^(-A|-N)/\1/p'| sed -e 's/"/\\"/g' | xargs -I{} echo "-t nat {}" > $IP_SAVE_FILE
   $IPCMD -S | sed -n -E 's/^(-A|-N)/\1/p' >> $IP_SAVE_FILE
   cat $IP_SAVE_FILE
   exit 0
@@ -369,7 +369,12 @@ if [ "${ALLOW_HOSTS}" ] ; then
     done
 fi
 
-
+###
+# Restore Docker rules etc
+###
+if [ -e "$IP_SAVE_FILE" ]; then
+  cat $IP_SAVE_FILE | sed -e 's/"/\\"/g' | xargs -I{} echo $IPCMD {} | bash
+fi
 
 ###
 # Defend ping-of-death
@@ -487,23 +492,22 @@ fi
 
 $IPCMD -N DOCKER-USER
 
-for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
-  echo "docker port: $allow_port"
-  $IPCMD -A DOCKER-USER -i $EXT_IF -p tcp -m tcp --dport $allow_port -j ACCEPT 
-done
-echo ""
 
 for private in ${trustAndPrivate[@]} ; do
   echo "docker trust host: $private"
-  $IPCMD -A DOCKER-USER -j ACCEPT -s $private
-  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user tcp ):" -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
-  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user udp ):" -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
-  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
-  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -I DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user tcp ):" -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -I DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user udp ):" -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j ACCEPT -s $private
 done
 echo ""
 
-$IPCMD -A DOCKER-USER -j RETURN
+for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
+  echo "docker port: $allow_port"
+  $IPCMD -I DOCKER-USER -i $EXT_IF -p tcp -m tcp --dport $allow_port -j ACCEPT 
+done
+echo ""
 
 
 ## Drop illegal connection
@@ -552,13 +556,16 @@ $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 
 ## List rules @ end line
 echo "## Check All Rules"
-# Restore Docker rules
-if [ -e "$IP_SAVE_FILE" ]; then
-  cat $IP_SAVE_FILE | sed 's/"/\\"/g' | xargs -I{} echo $IPCMD {} | bash
-fi
 $IPCMD -S
 
+if [ -e "$IP_SAVE_FILE" ]; then
+  echo ""
+  echo ""
+  echo "Please also take care no duplicate rules from imports. $IP_SAVE_FILE"
+fi
 dump "Iptalbes was applied."
+
+
 if [ -n "$DEBUG_ONLY" ] ; then
     if [ -z "$DEBUG_SEC" ] ; then
         DEBUG_SEC=60;
