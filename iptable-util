@@ -31,7 +31,7 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
   -d, --debug                 Reset after 60sec.
       --debug-sec             Reset after \$n sec.
       --docker-port           Docker Port
-      --stop                  Reset all rule.
+      --stop                  Reset all rule and make all accept.
       --info                  Display information only.
       --limit                 Limit packets with second
       --burst                 Execute limit when exceed burst
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]];  do
     case $key in
         -h|--help)
         usage
-        exit;
+        exit 0;
 	;;
 	-e|--external-interface)
 	EXT_IF="$2"
@@ -170,7 +170,6 @@ if [ "$(whoami)" != "root" ]; then
 fi
 
 ## Check if iptalbe exists 
-IP_RESTORE="/sbin/iptables-restore"
 IP_SAVE_FILE="/dev/shm/iptables.save"
 if [ -z "$IPCMD" ] ; then
     IPCMD="iptables";
@@ -225,10 +224,10 @@ initNAT ()
 }
 
 if [ -n "$RESET_ONLY" ] ; then
-    echo "# Reset only"
+    dump "Reset only"
     initialize
     $IPCMD -S
-    exit;
+    exit 0
 fi
 
 if [ -z "$EXT_IF" ] ; then
@@ -307,10 +306,6 @@ fi
 
 dump "Start to apply firewall... Press ctrl+c to cancel."
 sleep 3;
-
-if [[ -e "$IP_SAVE_FILE" && -x "$IP_RESTORE" ]]; then
-  $IP_RESTORE < $IP_SAVE_FILE
-fi
 
 ## Default drop all
 $IPCMD -P INPUT DROP
@@ -529,8 +524,17 @@ $IPCMD -A PREROUTING -t mangle -p tcp --dport 53 -j TOS --set-tos 8
 $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 
 
-## List rules
+## List rules @ end line
 echo "## Check All Rules"
+# Restore Docker rules
+#  if [[ -e "$IP_SAVE_FILE" && -x "$IP_RESTORE" ]]; then
+#    $IP_RESTORE -n < $IP_SAVE_FILE
+#  fi
+
+$IPCMD -N DOCKER 
+$IPCMD -N DOCKER-ISOLATION-STAGE-1 
+$IPCMD -N DOCKER-ISOLATION-STAGE-2
+
 $IPCMD -S
 
 dump "Iptalbes was applied."
