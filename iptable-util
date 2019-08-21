@@ -342,20 +342,20 @@ $IPCMD -P INPUT DROP
 $IPCMD -P FORWARD DROP
 
 ## Allow lo
-LOCAL=(lo docker0 cbr0)
-
-for lo in ${LOCAL[@]} ; do
-  $IPCMD -A INPUT -i $lo -j ACCEPT
-  $IPCMD -A OUTPUT -o $lo -j ACCEPT
-done
+$IPCMD -A INPUT -i lo -j ACCEPT
+$IPCMD -A OUTPUT -o lo -j ACCEPT
 
 ## Allow internal
+ARR_FORWARD=(docker0 cbr0);
 if [ "$INT_IF" != "$EXT_IF" ] ; then
-   $IPCMD -A INPUT -i $INT_IF -j ACCEPT
-   $IPCMD -A OUTPUT -o $INT_IF -j ACCEPT
-   $IPCMD -A FORWARD -i $INT_IF -j ACCEPT
-   $IPCMD -A FORWARD -o $INT_IF -j ACCEPT
+  ARR_FORWARD+=($INT_IF)
 fi
+for internal in ${ARR_FORWARD[@]} ; do
+  $IPCMD -A INPUT -i $internal -j ACCEPT
+  $IPCMD -A OUTPUT -o $internal -j ACCEPT
+  $IPCMD -A FORWARD -i $internal -j ACCEPT
+  $IPCMD -A FORWARD -o $internal -j ACCEPT
+done
 
 ###
 # Allow trust
