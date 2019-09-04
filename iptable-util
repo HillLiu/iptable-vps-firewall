@@ -485,7 +485,7 @@ PRIVATE=(
   "192.168.0.0/16"
 )
 if [ "${ALLOW_HOSTS}" ] ; then
-  trustAndPrivate=("${ALLOW_HOSTS[@]}" "${PRIVATE[@]}")
+  trustAndPrivate=("${PRIVATE[@]}" "${ALLOW_HOSTS[@]}")
 else
   trustAndPrivate=PRIVATE
 fi
