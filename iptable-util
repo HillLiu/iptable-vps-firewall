@@ -1,7 +1,8 @@
 #!/bin/bash
 IF="/sbin/ifconfig"
+IP_SAVE_FILE="/dev/shm/iptables.save"
 PACKETS_LIMIT=30mb
-PACKETS_BURST=1gb
+PACKETS_BURST=1024mb
 
 dump ()
 {
@@ -30,8 +31,10 @@ More sample usage. https://github.com/HillLiu/iptable-vps-firewall/wiki/sample
   -l, --list                  Current rule list.
   -d, --debug                 Reset after 60sec.
       --debug-sec             Reset after \$n sec.
-      --docker-port           Docker Port
-      --stop                  Reset all rule.
+      --docker-port           Docker Port.
+      --ftp                   Enable FTP.
+      --save                  Store rules.
+      --stop                  Reset all rule and make all accept.
       --info                  Display information only.
       --limit                 Limit packets with second
       --burst                 Execute limit when exceed burst
@@ -90,13 +93,57 @@ netinfo ()
     done
 }
 
+initialize ()
+{
+    $IPCMD -P INPUT   ACCEPT
+    $IPCMD -P OUTPUT  ACCEPT
+    $IPCMD -P FORWARD ACCEPT
+    $IPCMD -F
+    $IPCMD -X
+    $IPCMD -t nat -F
+    $IPCMD -t nat -X
+    $IPCMD -t mangle -F
+    $IPCMD -t mangle -X
+    $IPCMD -Z
+}
+
+initNAT ()
+{
+  echo ""
+  echo "## NAT From IP ##"
+  echo $NAT_FROM_IP
+  echo "## NAT From Port ##"
+  echo $NAT_FROM_PORT
+  echo "## NAT To IP ##"
+  echo $NAT_TO_IP
+  echo "## NAT To Port ##"
+  echo $NAT_TO_PORT
+  echo ""
+  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
+  $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
+}
+
+apply_ftp ()
+{
+  ###
+  # FTP Active mode
+  ###
+  modprobe ip_conntrack
+  modprobe ip_conntrack_ftp
+  $IPCMD -A OUTPUT -p tcp --sport $HI -m multiport --dports 20,$HI -m state --state ESTABLISHED -j ACCEPT
+  $IPCMD -A OUTPUT -p tcp -m tcp --sport $HI -m multiport --dports 21,$HI -m state --state NEW,ESTABLISHED -j ACCEPT
+  $IPCMD -A OUTPUT -p tcp -m tcp --sport $HI --dport $HI -m state --state NEW,RELATED -j ACCEPT
+  $IPCMD -A INPUT -p tcp --sport 20 --dport $HI -m state --state ESTABLISHED,RELATED -j ACCEPT
+  $IPCMD -A INPUT -p tcp -m tcp -m multiport --sports 21,$HI --dport $HI -m state --state ESTABLISHED -j ACCEPT
+}
+
 
 while [[ $# -gt 0 ]];  do
     key="$1"
     case $key in
         -h|--help)
         usage
-        exit;
+        exit 0;
 	;;
 	-e|--external-interface)
 	EXT_IF="$2"
@@ -157,6 +204,12 @@ while [[ $# -gt 0 ]];  do
 	--stop)
         RESET_ONLY=on
 	;;
+	--save)
+        SAVE_ONLY=on
+	;;
+	--ftp)
+        FTP=on
+	;;
 	*)
         # unknown option
 	;;
@@ -170,8 +223,6 @@ if [ "$(whoami)" != "root" ]; then
 fi
 
 ## Check if iptalbe exists 
-IP_RESTORE="/sbin/iptables-restore"
-IP_SAVE_FILE="/dev/shm/iptables.save"
 if [ -z "$IPCMD" ] ; then
     IPCMD="iptables";
 fi
@@ -189,46 +240,24 @@ if [ -n "$LIST_RULES_ONLY" ] ; then
     $IPCMD -t nat -L
     echo ""
     dump "Command List"
+    $IPCMD -S -t nat | xargs -I{} echo "-t nat {}"
     $IPCMD -S
     echo ""
-    exit 1;
+    exit 0
 fi
 
-initialize ()
-{
-    $IPCMD -P INPUT   ACCEPT
-    $IPCMD -P OUTPUT  ACCEPT
-    $IPCMD -P FORWARD ACCEPT
-    $IPCMD -F
-    $IPCMD -X
-    $IPCMD -t nat -F
-    $IPCMD -t nat -X
-    $IPCMD -t mangle -F
-    $IPCMD -t mangle -X
-    $IPCMD -Z
-}
-
-initNAT ()
-{
-  echo ""
-  echo "## NAT From IP ##"
-  echo $NAT_FROM_IP
-  echo "## NAT From Port ##"
-  echo $NAT_FROM_PORT
-  echo "## NAT To IP ##"
-  echo $NAT_TO_IP
-  echo "## NAT To Port ##"
-  echo $NAT_TO_PORT
-  echo ""
-  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
-  $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
-}
+if [ -n "$SAVE_ONLY" ] ; then
+  $IPCMD -S -t nat | sed -n -E 's/^(-A|-N)/\1/p'| sed -e 's/"/\\"/g' | xargs -I{} echo "-t nat {}" > $IP_SAVE_FILE
+  $IPCMD -S | sed -n -E 's/^(-A|-N)/\1/p' >> $IP_SAVE_FILE
+  cat $IP_SAVE_FILE
+  exit 0
+fi
 
 if [ -n "$RESET_ONLY" ] ; then
-    echo "# Reset only"
+    dump "Reset only"
     initialize
     $IPCMD -S
-    exit;
+    exit 0
 fi
 
 if [ -z "$EXT_IF" ] ; then
@@ -302,35 +331,31 @@ echo $INT_NET
 echo ""
 
 if [ -n "$SHOW_INFO_ONLY" ] ; then
-    exit;
+    exit 0
 fi
 
 dump "Start to apply firewall... Press ctrl+c to cancel."
 sleep 3;
-
-if [[ -e "$IP_SAVE_FILE" && -x "$IP_RESTORE" ]]; then
-  $IP_RESTORE < $IP_SAVE_FILE
-fi
 
 ## Default drop all
 $IPCMD -P INPUT DROP
 $IPCMD -P FORWARD DROP
 
 ## Allow lo
-LOCAL=(lo docker0 cbr0)
-
-for lo in ${LOCAL[@]} ; do
-  $IPCMD -A INPUT -i $lo -j ACCEPT
-  $IPCMD -A OUTPUT -o $lo -j ACCEPT
-done
+$IPCMD -A INPUT -i lo -j ACCEPT
+$IPCMD -A OUTPUT -o lo -j ACCEPT
 
 ## Allow internal
+ARR_FORWARD=(docker0 cbr0);
 if [ "$INT_IF" != "$EXT_IF" ] ; then
-   $IPCMD -A INPUT -i $INT_IF -j ACCEPT
-   $IPCMD -A OUTPUT -o $INT_IF -j ACCEPT
-   $IPCMD -A FORWARD -i $INT_IF -j ACCEPT
-   $IPCMD -A FORWARD -o $INT_IF -j ACCEPT
+  ARR_FORWARD+=($INT_IF)
 fi
+for internal in ${ARR_FORWARD[@]} ; do
+  $IPCMD -A INPUT -i $internal -j ACCEPT
+  $IPCMD -A OUTPUT -o $internal -j ACCEPT
+  $IPCMD -A FORWARD -i $internal -j ACCEPT
+  $IPCMD -A FORWARD -o $internal -j ACCEPT
+done
 
 ###
 # Allow trust
@@ -344,17 +369,12 @@ if [ "${ALLOW_HOSTS}" ] ; then
     done
 fi
 
-
 ###
-# FTP Active mode
+# Restore Docker rules etc
 ###
-modprobe ip_conntrack
-modprobe ip_conntrack_ftp
-$IPCMD -A OUTPUT -p tcp --sport $HI -m multiport --dports 20,$HI -m state --state ESTABLISHED -j ACCEPT
-$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI -m multiport --dports 21,$HI -m state --state NEW,ESTABLISHED -j ACCEPT
-$IPCMD -A OUTPUT -p tcp -m tcp --sport $HI --dport $HI -m state --state NEW,RELATED -j ACCEPT
-$IPCMD -A INPUT -p tcp --sport 20 --dport $HI -m state --state ESTABLISHED,RELATED -j ACCEPT
-$IPCMD -A INPUT -p tcp -m tcp -m multiport --sports 21,$HI --dport $HI -m state --state ESTABLISHED -j ACCEPT
+if [ -e "$IP_SAVE_FILE" ]; then
+  cat $IP_SAVE_FILE | sed -e 's/"/\\"/g' | xargs -I{} echo $IPCMD {} | bash
+fi
 
 ###
 # Defend ping-of-death
@@ -381,7 +401,6 @@ if [ "x-1" != "x$PACKETS_BURST" ]; then
 else
   PACKETS_BURST=""
 fi  
-
 $IPCMD -N synFlood
 $IPCMD -A synFlood -p tcp --syn \
          -m hashlimit \
@@ -395,23 +414,11 @@ $IPCMD -A synFlood -j LOG --log-prefix "IPTABLES ( syn flood ):"
 $IPCMD -A synFlood -p tcp -j REJECT --reject-with tcp-reset
 $IPCMD -A INPUT -p tcp -m state --state NEW -j synFlood
 
-## 
-# Port Scan 
-##
-$IPCMD -N tcp_packets
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j LOG --log-prefix "IPTABLES ( tcp ALL FIN,URG,PSH ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j LOG --log-prefix "IPTABLES ( tcp ALL ALL ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j LOG --log-prefix "IPTABLES ( tcp ALL SYN,RST,ACK,FIN,URG ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "IPTABLES ( tcp ALL NONE ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j LOG --log-prefix "IPTABLES ( tcp SYN,RST SYN,RST ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j LOG --log-prefix "IPTABLES ( tcp SYN,FIN SYN,FIN ):"
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,ACK,FIN,RST RST \
+###
+# Drop Port Scan 
+###
+$IPCMD -N PORT_SCAN 
+$IPCMD -A PORT_SCAN -p tcp \
          -m hashlimit \
          --hashlimit-name _port_scan \
          --hashlimit-mode srcip \
@@ -420,7 +427,26 @@ $IPCMD -A tcp_packets -p tcp --tcp-flags SYN,ACK,FIN,RST RST \
          --hashlimit-upto 15/m \
          --hashlimit-burst 10 \
          -j RETURN
-$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j LOG --log-prefix "IPTABLES ( port scan ):"
+$IPCMD -A PORT_SCAN -j LOG --log-prefix "IPTABLES ( port scan ):"
+$IPCMD -A PORT_SCAN -p tcp -j DROP
+
+## 
+# Port Scan 
+##
+$IPCMD -N tcp_packets
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j LOG --log-prefix "IPTABLES (NMAP FIN/URG/PSH):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j LOG --log-prefix "IPTABLES (Xmas Tree):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j LOG --log-prefix "IPTABLES (Another Xmas Tree):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j LOG --log-prefix "IPTABLES (Null Scan):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j LOG --log-prefix "IPTABLES (SYN/RST):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j LOG --log-prefix "IPTABLES (SYN/FIN):"
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL ALL -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags ALL NONE -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,RST SYN,RST -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+$IPCMD -A tcp_packets -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j PORT_SCAN 
 $IPCMD -A INPUT -p tcp -j tcp_packets
 $IPCMD -A FORWARD -p tcp -j tcp_packets
 
@@ -450,7 +476,7 @@ COMMON_PORT="80 443"
 if [ "${DOCKER_OPEN_PORT}" ] ; then
   ALL_DOCKER_OPEN_PORT=("${DOCKER_OPEN_PORT[@]}" "${COMMON_PORT[@]}")
 else
-  ALL_DOCKER_OPEN_PORT=COMMON_PORT
+  ALL_DOCKER_OPEN_PORT=${COMMON_PORT}
 fi
 
 PRIVATE=(
@@ -459,36 +485,32 @@ PRIVATE=(
   "192.168.0.0/16"
 )
 if [ "${ALLOW_HOSTS}" ] ; then
-  trustAndPrivate=("${ALLOW_HOSTS[@]}" "${PRIVATE[@]}")
+  trustAndPrivate=("${PRIVATE[@]}" "${ALLOW_HOSTS[@]}")
 else
   trustAndPrivate=PRIVATE
 fi
 
 $IPCMD -N DOCKER-USER
 
-for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
-  echo "docker port: $allow_port"
-  $IPCMD -A DOCKER-USER -i $EXT_IF -p tcp -m tcp --dport $allow_port -j ACCEPT 
-done
-echo ""
 
 for private in ${trustAndPrivate[@]} ; do
   echo "docker trust host: $private"
-  $IPCMD -A DOCKER-USER -j ACCEPT -s $private
-  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user tcp ):" -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
-  $IPCMD -A DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user udp ):" -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
-  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
-  $IPCMD -A DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j DROP -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -I DOCKER-USER -j DROP -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user tcp ):" -i $EXT_IF -p tcp -m tcp --tcp-flags FIN,SYN,RST,ACK SYN -d $private
+  $IPCMD -I DOCKER-USER -j LOG --log-prefix "IPTABLES ( docker-user udp ):" -i $EXT_IF -p udp -m udp --dport 0:32767 -d $private
+  $IPCMD -I DOCKER-USER -j ACCEPT -s $private
 done
 echo ""
 
-$IPCMD -A DOCKER-USER -j RETURN
+for allow_port in ${ALL_DOCKER_OPEN_PORT[@]}; do
+  echo "docker port: $allow_port"
+  $IPCMD -I DOCKER-USER -i $EXT_IF -p tcp -m tcp --dport $allow_port -j ACCEPT 
+done
+echo ""
 
 
 ## Drop illegal connection
-$IPCMD -A INPUT -i $EXT_IF -m state --state RELATED,ESTABLISHED -j ACCEPT 
-$IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j LOG --log-prefix "IPTABLES ( invalid FORWARD ):"
-$IPCMD -A FORWARD -i $EXT_IF -m state --state NEW,INVALID -j DROP 
 $IPCMD -A OUTPUT -m state --state INVALID -j LOG --log-prefix "IPTABLES ( invalid OUTPUT ):"
 $IPCMD -A OUTPUT -m state --state INVALID -j DROP
 
@@ -508,6 +530,9 @@ $IPCMD -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 $IPCMD -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ## Enable OPEN_PORT
+if [ -n "$FTP" ] ; then
+   apply_ftp 
+fi
 for PORT in $OPEN_PORT; do
     $IPCMD -A INPUT -i $EXT_IF -p tcp --dport $PORT -j ACCEPT
     $IPCMD -A INPUT -i $EXT_IF -p udp --dport $PORT -j ACCEPT
@@ -529,11 +554,18 @@ $IPCMD -A PREROUTING -t mangle -p tcp --dport 53 -j TOS --set-tos 8
 $IPCMD -A PREROUTING -t mangle -p udp --dport 53 -j TOS --set-tos 16
 
 
-## List rules
+## List rules @ end line
 echo "## Check All Rules"
 $IPCMD -S
 
+if [ -e "$IP_SAVE_FILE" ]; then
+  echo ""
+  echo ""
+  echo "Please also take care no duplicate rules from imports. $IP_SAVE_FILE"
+fi
 dump "Iptalbes was applied."
+
+
 if [ -n "$DEBUG_ONLY" ] ; then
     if [ -z "$DEBUG_SEC" ] ; then
         DEBUG_SEC=60;
