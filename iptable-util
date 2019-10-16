@@ -1,8 +1,8 @@
 #!/bin/bash
 IF="/sbin/ifconfig"
 IP_SAVE_FILE="/dev/shm/iptables.save"
-PACKETS_LIMIT=30mb
-PACKETS_BURST=1024mb
+PACKETS_LIMIT=512mb
+PACKETS_BURST=2048mb
 
 dump ()
 {
@@ -511,7 +511,9 @@ echo ""
 
 
 ## Drop illegal connection
-$IPCMD -A OUTPUT -m state --state INVALID -j LOG --log-prefix "IPTABLES ( invalid OUTPUT ):"
+if [ -n "$DEBUG_ONLY" ] ; then
+  $IPCMD -A OUTPUT -m state --state INVALID -j LOG --log-prefix "IPTABLES ( invalid OUTPUT ):"
+fi
 $IPCMD -A OUTPUT -m state --state INVALID -j DROP
 
 ###
@@ -567,13 +569,13 @@ dump "Iptalbes was applied."
 
 
 if [ -n "$DEBUG_ONLY" ] ; then
-    if [ -z "$DEBUG_SEC" ] ; then
-        DEBUG_SEC=60;
-    fi
-    dump "Iptalbes Debug mode enable will reset after ${DEBUG_SEC}secs... Press ctrl+c to cancel reset."
-    sleep $DEBUG_SEC;
-    dump "Iptalbes was reset."
-    initialize
+  if [ -z "$DEBUG_SEC" ] ; then
+    DEBUG_SEC=60;
+  fi
+  dump "Iptalbes Debug mode enable will reset after ${DEBUG_SEC}secs... Press ctrl+c to cancel reset."
+  sleep $DEBUG_SEC;
+  dump "Iptalbes was reset."
+  initialize
 fi
 
 exit 0;
