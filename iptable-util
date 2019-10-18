@@ -412,7 +412,7 @@ $IPCMD -A synFlood -p tcp --syn \
          -j RETURN
 $IPCMD -A synFlood -j LOG --log-prefix "IPTABLES ( syn flood ):"
 $IPCMD -A synFlood -p tcp -j REJECT --reject-with tcp-reset
-$IPCMD -A INPUT -p tcp -m state --state NEW -j synFlood
+$IPCMD -A INPUT -i $EXT_IF -p tcp -m state --state NEW -j synFlood
 
 ###
 # Drop Port Scan 
