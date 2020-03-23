@@ -436,31 +436,33 @@ if [ -z "$WITHOUT_SYN_PROTECT" ] ; then
   $IPCMD -A INPUT -i $EXT_IF -p tcp -m state --state NEW -j synFlood
 fi
 
-###
-# Drop Port Scan 
-###
-$IPCMD -N PORT_SCAN 
-
-for PORT in $OPEN_PORT; do
-  $IPCMD -A PORT_SCAN -p tcp --dport $PORT -j RETURN
-done
-
-$IPCMD -A PORT_SCAN -p tcp \
-         -m hashlimit \
-         --hashlimit-name _port_scan \
-         --hashlimit-mode srcip \
-         --hashlimit-htable-expire 10000 \
-         --hashlimit-htable-gcinterval 5000 \
-         --hashlimit-upto 15/m \
-         --hashlimit-burst 10 \
-         -j RETURN
-$IPCMD -A PORT_SCAN -j LOG --log-prefix "IPTABLES ( port scan ):"
-$IPCMD -A PORT_SCAN -p tcp -j DROP
 
 ## 
 # Tcp (Port) Scan 
 ##
 if [ -z "$WITHOUT_PORTSCAN_PROTECT" ] ; then
+
+###
+# Drop Port Scan 
+###
+  $IPCMD -N PORT_SCAN 
+
+  for PORT in $OPEN_PORT; do
+    $IPCMD -A PORT_SCAN -p tcp --dport $PORT -j RETURN
+  done
+
+  $IPCMD -A PORT_SCAN -p tcp \
+           -m hashlimit \
+           --hashlimit-name _port_scan \
+           --hashlimit-mode srcip \
+           --hashlimit-htable-expire 10000 \
+           --hashlimit-htable-gcinterval 5000 \
+           --hashlimit-upto 15/m \
+           --hashlimit-burst 10 \
+           -j RETURN
+  $IPCMD -A PORT_SCAN -j LOG --log-prefix "IPTABLES ( port scan ):"
+  $IPCMD -A PORT_SCAN -p tcp -j DROP
+
   $IPCMD -N tcp_packets
 
   $IPCMD -A tcp_packets -p tcp --tcp-flags ALL FIN,URG,PSH -j LOG --log-prefix "IPTABLES (NMAP FIN/URG/PSH):"
