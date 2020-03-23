@@ -2,7 +2,7 @@
 IF="/sbin/ifconfig"
 IP_SAVE_FILE=${IP_SAVE_FILE-/dev/shm/iptables.save}
 PACKETS_LIMIT=100mb
-PACKETS_BURST=4096mb
+PACKETS_BURST=3840mb
 
 dump ()
 {
