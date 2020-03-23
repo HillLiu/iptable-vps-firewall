@@ -373,6 +373,11 @@ for internal in ${ARR_FORWARD[@]} ; do
   $IPCMD -A FORWARD -o $internal -j ACCEPT
 done
 
+## Wrap packet
+$IPCMD -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+$IPCMD -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
 ###
 # Allow trust
 ###
@@ -561,11 +566,6 @@ if [ "$INT_IF" != "$EXT_IF" ] ; then
    $IPCMD -t nat -A POSTROUTING -s $INT_NET -j SNAT --to-source $EXT_IP
    $IPCMD -t nat -A POSTROUTING -o $EXT_IF -s $INT_NET -j MASQUERADE
 fi
-
-## Wrap packet
-$IPCMD -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-$IPCMD -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-$IPCMD -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ## Enable OPEN_PORT
 if [ -n "$FTP" ] ; then
