@@ -123,9 +123,7 @@ initNAT ()
   echo $NAT_TO_PORT
   echo ""
   
-if [ -z "$WITHOUT_PING_PROTECT" ] ; then
-  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
-fi
+  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE
 
   $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
 }
@@ -236,6 +234,12 @@ done
 if [ "$(whoami)" != "root" ]; then
     dump "Sorry, you are not root."
     exit 1
+fi
+
+if [ -z "$WITHOUT_PING_PROTECT" ] ; then
+  PING_RULE="PING_OF_DEATH"
+else
+  PING_RULE="ACCEPT"
 fi
 
 ## Check if iptalbe exists 
@@ -413,8 +417,9 @@ if [ -z "$WITHOUT_PING_PROTECT" ] ; then
            -j ACCEPT
   $IPCMD -A PING_OF_DEATH -j LOG --log-prefix "IPTABLES ( ping of death ):"
   $IPCMD -A PING_OF_DEATH -p icmp -j DROP
-  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j PING_OF_DEATH
 fi
+
+$IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE 
 
 ###
 # Defend sync flood
