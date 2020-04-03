@@ -123,7 +123,7 @@ initNAT ()
   echo $NAT_TO_PORT
   echo ""
   
-  $IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE
+  $IPCMD -A INPUT -p icmp --icmp-type any -s 0/0 -d $NAT_FROM_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE
 
   $IPCMD -A PREROUTING -t nat -p tcp --source $NAT_FROM_IP --dport $NAT_FROM_PORT -j DNAT --to $NAT_TO_IP:$NAT_TO_PORT
 }
@@ -419,7 +419,11 @@ if [ -z "$WITHOUT_PING_PROTECT" ] ; then
   $IPCMD -A PING_OF_DEATH -p icmp -j DROP
 fi
 
-$IPCMD -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE 
+###
+# icmp type
+# https://www.frozentux.net/iptables-tutorial/chunkyhtml/a6339.html
+###
+$IPCMD -A INPUT -p icmp --icmp-type any -s 0/0 -d $EXT_IP -m state --state NEW,ESTABLISHED,RELATED -j $PING_RULE 
 
 ###
 # Defend sync flood
