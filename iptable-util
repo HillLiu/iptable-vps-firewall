@@ -254,10 +254,10 @@ fi
 
 if [ -n "$LIST_RULES_ONLY" ] ; then
     dump "Rule List"
-    $IPCMD -L -n
+    $IPCMD -L -n --line-number
     echo ""
     dump "Nat Rule List"
-    $IPCMD -t nat -L
+    $IPCMD -t nat -L --line-number
     echo ""
     dump "Command List"
     $IPCMD -S -t nat | xargs -I{} echo "-t nat {}"
